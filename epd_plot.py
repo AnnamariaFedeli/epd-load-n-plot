@@ -117,7 +117,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         ion_string = ''
 
     # Main information dataframe containing most of the required data.
-    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[]})
+    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[]})
 
     # Adds basic metadata to main info df.
     df_info['Plot_period'] = [plotstart]+[plotend]+['']*(len(channels)-2)
@@ -203,7 +203,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
              list_peak_significance[i] = -1
 
 
-
+    
     df_info['Energy_channel'] = channels
     df_info['Background_flux'] = list_bg_fluxes
     df_info['Flux_peak'] = list_flux_peaks
@@ -212,7 +212,8 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
     df_info['Peak_electron_uncertainty'] = list_peak_electron_uncertainties
     df_info['Bg_electron_uncertainty'] = list_average_bg_uncertainties
     df_info['Peak_significance'] = list_peak_significance
-
+    df_info['Backsub_peak_uncertainty'] = np.sqrt(df_info['Peak_electron_uncertainty']**2 + df_info['Bg_electron_uncertainty']**2)
+    
 
 
     # Calculates energy errors for spectrum plot.
@@ -464,9 +465,8 @@ def plot_spectrum(args, bg_subtraction=True, savefig=False, path='', key=''):
 
     # Plots either the background subtracted or raw flux peaks depending on choice.
     if(bg_subtraction):
-
         ax = df_info.plot.scatter(x='Primary_energy', y='Bg_subtracted_peak', c='red', label='Flux peaks', figsize=(13,10))
-        ax.errorbar(x=df_info['Primary_energy'], y=df_info['Bg_subtracted_peak'], yerr=df_info['Peak_electron_uncertainty'],
+        ax.errorbar(x=df_info['Primary_energy'], y=df_info['Bg_subtracted_peak'], yerr=df_info['Backsub_peak_uncertainty'],
                     xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
     elif(bg_subtraction == False):
 
