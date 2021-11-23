@@ -5,7 +5,49 @@ from matplotlib.ticker import FormatStrFormatter
 from adjustText import adjust_text
 
 def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, searchend, bgstart, bgend, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+    """ determines an energy spectrum from time series data for any of the Solar Orbiter / EPD sensors
 
+    Parameters
+    ----------
+    df_protons : pandas DataFrame
+        contains proton (ion) data if instrument is 'het' ('ept')
+    df_electrons : pandas DataFrame
+        electron data
+    plotstart : string
+        start time of the time series plot, e.g., '2020-11-18-0000'
+    plotend : string
+        end time of the time series plot, e.g., '2020-11-18-2230'
+    searchstart : string
+        start time of the time interval used for determining the spectrum
+    searchend : string
+        end time of the time interval used for determining the spectrum
+    bgstart : string
+        start time of the background time interval (used for background subtraction)
+    bgend : string
+        end time of the background time interval (used for background subtraction)
+    instrument : str, optional
+        'ept', 'het', or 'step'; by default 'ept'
+    data_type : str, optional
+        which data level (e.g., low latency (ll) or level2 (l2)) is used. This affects the number of energy channels; by default 'l2'
+    averaging_mode : str, optional
+        averaging of the data, 'mean', 'rolling_window', or 'none'; by default 'none'
+    averaging : int, optional
+        number of minutes used for averaging, by default 2
+    masking : bool, optional
+        Refers only to STEP data. If true, time intervals with significant (5 sigma) ion contamination are masked; by default False
+    ion_conta_corr : bool, optional
+        Refers only to EPT data. If true, ion contamination correction is applied; by default False
+
+    Returns
+    -------
+    df_electron_fluxes : pandas DataFrame
+        data frame that cotains the electron flux data with applied averaging and optional contamination correction (EPT) or masking (STEP)
+    df_info : pandas DataFrame
+        data frame that contains the spectrum data and all its metadata (which is saved to csv in the function write_to_csv())
+    [searchstart, searchend]: list of strings
+    [e_low, e_high] : list of float
+    [instrument, data_type] . list of strings
+    """
     # Takes proton and electron flux and uncertainty values from original data.
     if(instrument != 'step'):
 
