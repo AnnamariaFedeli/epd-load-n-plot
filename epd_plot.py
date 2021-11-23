@@ -37,7 +37,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         Refers only to STEP data. If true, time intervals with significant (5 sigma) ion contamination are masked; by default False
     ion_conta_corr : bool, optional
         Refers only to EPT data. If true, ion contamination correction is applied; by default False
-
+    frac_nan_threashold: float
+        is used to to check if there is enough non-nan flux data points in the search-period interval. 
+        If not, the flux and uncertainty value of that energy channel are set to nan and therefore excluded from the spectrum; by default0.4
     Returns
     -------
     df_electron_fluxes : pandas DataFrame
@@ -158,7 +160,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         ion_string = ''
 
     # Main information dataframe containing most of the required data.
-    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[]})
+    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[], 'frac_nonan':[]})
 
     # Adds basic metadata to main info df.
     df_info['Plot_period'] = [plotstart]+[plotend]+['']*(len(channels)-2)
@@ -209,6 +211,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
     list_average_bg_uncertainties = []
     list_bg_std = []
     list_peak_significance = []
+    list_frac_nonan = []
 
     for channel in channels:
 
@@ -220,7 +223,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         # check if a large enough fraction of data points are not nan. If there are too many nan's in the search time interval, then exclude the channel from the spectrum (set nan)
         data = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart:searchend]
         frac_nonan = 1 - np.sum(np.isnan(data)) / len(data) # fraction of data in interval that is not nan
-        print(channel, frac_nonan)
+        list_frac_nonan.append(frac_nonan)
         if frac_nonan < frac_nan_threashold:
             flux_peak = np.nan
             peak_electron_uncertainty = np.nan
@@ -260,7 +263,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
     df_info['Peak_significance'] = list_peak_significance
     df_info['Backsub_peak_uncertainty'] = np.sqrt(df_info['Peak_electron_uncertainty']**2 + df_info['Bg_electron_uncertainty']**2)
     df_info['rel_backsub_peak_err'] = np.abs(df_info['Backsub_peak_uncertainty'] / df_info['Bg_subtracted_peak'])
-    
+    df_info['frac_nonan'] = list_frac_nonan
 
     # Calculates energy errors for spectrum plot.
     energy_error_low = []
