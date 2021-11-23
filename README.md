@@ -128,7 +128,8 @@ Arguments:
 - *averaging*: (default: 2) Provide averaging time in minutes, if 'mean' toggled. For 'rolling_window' this is the window size in observations.
 - *masking*: (default: False) Toggled the STEP ion masking.
 - *ion_conta_corr*: (default: False) Toggled the ion contamination correction for EPT.
-
+- *frac_nan_threashold*: (default 0.4) Used to to check if there is enough non-nan flux data points in the search-period interval. 
+        If not, the flux and uncertainty value of that energy channel are set to nan and therefore excluded from the spectrum.
 ---
 **plot_channels**(data, *bg_subtraction*, *savefig*, *path*, *key*)
 
