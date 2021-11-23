@@ -3,45 +3,47 @@ from matplotlib.ticker import LinearLocator, MultipleLocator, AutoMinorLocator
 import matplotlib.dates as mdates
 from matplotlib.ticker import FormatStrFormatter
 from adjustText import adjust_text
+from astropy import units as u
+
 
 def evolt2beta(ekin, which):
     c = 299792458.  # m/s,  speed of light
     me0 = 9.109e-31 # kg,   mass of electron
     mp0 = 1.67e-27
     q = 1.60217646e-19  # C  charge
-​
-    ekin = ekin*1.0e3*q  # E in eV to keV and then to Joule
-​
+    ekin = ekin*1.0e6*q  # E in MeV to eV and then to Joule
+    
     betae = np.sqrt(1-(me0*c**2/(ekin+me0*c**2))**2)
     betap = np.sqrt(1-(mp0*c**2/(ekin+mp0*c**2))**2)
-​
+    
     if (which == 1):
         beta = betap
+
     if (which == 2):
         beta = betae
     #print 'beta: ', beta
     return beta
-	
+
 def evolt2speed(ekin, which):
     '''
     evolt2speed(ekin, which)
-    ekin: in keV
+    ekin: in MeV
     which: 1=protons, 2=electrons
     returns: v in km/s
     '''
     c = 299792458.  # m/s,  speed of light
-​
+    
     beta = evolt2beta(ekin, which)
-​
+    
     v = beta*c
     v = v/1000. # in km/s
     return v
 
+#searchstart, searchend,
 
 
 
-
-def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, searchend, bgstart, bgend, t_inj, travel_distance, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_data(df_protons, df_electrons, plotstart, plotend,  bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
 
     # Takes proton and electron flux and uncertainty values from original data.
     if(instrument != 'step'):
@@ -64,13 +66,6 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
 
             e_low = [0.0329, 0.0411, 0.0537, 0.0733, 0.1013, 0.1425, 0.1997, 0.2821]
             e_high = [0.0411, 0.0537, 0.0733, 0.1013, 0.1425, 0.1997, 0.2821, 0.3977]
-			
-			#calculating the geometric mean of e channels. Will be used to calculate beta and velocity of particles
-			e_kin = [] 
-			
-			for i in range(len(channels)):
-				e_geom_mean = np.sqrt(e_low[i]*e_high[i])
-				e_kin.append(e_geom_mean)
 
         elif(data_type == 'l2'):
 
@@ -78,14 +73,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
 
             e_low = [0.0312, 0.0330, 0.0348, 0.0380, 0.0406, 0.0432, 0.0459, 0.0497, 0.0533, 0.0580, 0.0627, 0.0673, 0.0731, 0.0788, 0.0856, 0.0934, 0.1011, 0.1109, 0.1197, 0.1305, 0.1423, 0.1541, 0.1679, 0.1835, 0.1995, 0.2181, 0.2371, 0.2578, 0.2817, 0.3061, 0.3339, 0.3661, 0.3989, 0.4348]
             e_high = [0.0348, 0.0369, 0.0380, 0.0406, 0.0432, 0.0459, 0.0497, 0.0533, 0.0580, 0.0627, 0.0673, 0.0731, 0.0788, 0.0856, 0.0934, 0.1011, 0.1109, 0.1197, 0.1305, 0.1423, 0.1541, 0.1679, 0.1835, 0.1995, 0.2181, 0.2371, 0.2578, 0.2817, 0.3061, 0.3339, 0.3661, 0.3989, 0.4348, 0.4714]
-			
-			#calculating the geometric mean of e channels. Will be used to calculate beta and velocity of particles
-			e_kin = [] 
-			
-			for i in range(len(channels)):
-				e_geom_mean = np.sqrt(e_low[i]*e_high[i])
-				e_kin.append(e_geom_mean)
-				
+
     elif(instrument == 'het'):
 
         if(data_type == 'll'):
@@ -98,13 +86,6 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
 
             e_low = [0.4533, 1.0530, 2.4010, 5.9930]
             e_high = [1.0380, 2.4010, 5.9930, 18.8300]
-			
-			#calculating the geometric mean of e channels. Will be used to calculate beta and velocity of particles
-			e_kin = [] 
-			
-			for i in range(len(channels)):
-				e_geom_mean = np.sqrt(e_low[i]*e_high[i])
-				e_kin.append(e_geom_mean)
 
         elif(data_type == 'l2'):
 
@@ -112,14 +93,8 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
 
             e_low = [0.4533, 1.0530, 2.4010, 5.9930]
             e_high = [1.0380, 2.4010, 5.9930, 18.8300]
-			
-			#calculating the geometric mean of e channels. Will be used to calculate beta and velocity of particles
-			e_kin = [] 
-			
-			for i in range(len(channels)):
-				e_geom_mean = np.sqrt(e_low[i]*e_high[i])
-				e_kin.append(e_geom_mean)
 
+            
     elif(instrument == 'step'):
 
         if(data_type == 'l2'):
@@ -134,13 +109,8 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
 
             e_low = step_data[2]
             e_high = step_data[3]
-			
-			#calculating the geometric mean of e channels. Will be used to calculate beta and velocity of particles
-			e_kin = [] 
-			
-			for i in range(len(channels)):
-				e_geom_mean = np.sqrt(e_low[i]*e_high[i])
-				e_kin.append(e_geom_mean)
+
+
 
         # Cleans up negative flux values in STEP data.
         df_electron_fluxes[df_electron_fluxes<0] = np.NaN
@@ -189,11 +159,11 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         ion_string = ''
 
     # Main information dataframe containing most of the required data.
-    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[]})
+    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[]})
 
     # Adds basic metadata to main info df.
     df_info['Plot_period'] = [plotstart]+[plotend]+['']*(len(channels)-2)
-    df_info['Search_period'] = [searchstart]+[searchend]+['']*(len(channels)-2)
+    #df_info['Search_period'] = [searchstart]+[searchend]+['']*(len(channels)-2)
     df_info['Bg_period'] = [bgstart]+[bgend]+['']*(len(channels)-2)
 
     if(instrument=='ept'):
@@ -216,7 +186,10 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
 
         df_info['Averaging'] = ['Mean', 'Resampled to ' + str(averaging) + 'min'] + ['']*(len(channels)-2)
 
+
     # Energy bin primary energies; geometric mean.
+    # Will be used to calculate beta and velocity of particles.
+
     primary_energies = []
 
     for i in range(0,len(e_low)):
@@ -230,6 +203,51 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         primary_energies_channels.append(primary_energies[energy])
 
     df_info['Primary_energy'] = primary_energies_channels
+    
+
+    # Calculating plasma beta and velocity with kinetic energy (primary energy)
+    # the velocity is in km/s
+    velocity = []
+
+    for energy in primary_energies:
+        velocity.append(evolt2speed(energy, 2))
+
+    # Using calculated velocity to find the right search period
+    # the travel distance from au to km
+    travel_distance = travel_distance*1.496E8
+    
+    DV = []
+    
+    for v in velocity:
+        DV.append(travel_distance/v)
+    
+    searchstart = []
+    
+    for i in DV:
+        searchstart.append(pd.to_datetime(t_inj)+pd.Timedelta(seconds = i))
+        
+    searchend = []
+    
+    # same thing for second slope if fixed_window = None (to find searchend)
+    if fixed_window == None:
+        travel_distance_second_slope = travel_distance_second_slope*1.496E8
+
+        DV2 = []
+    
+        for v in velocity:
+            DV2.append(travel_distance_second_slope/v)
+
+        searchend = []
+   
+        for i in DV2:
+            searchend.append(pd.to_datetime(t_inj)+pd.Timedelta(seconds = i))
+            
+
+    if fixed_window != None:
+        for i in searchstart:
+            searchend.append(i+pd.Timedelta(minutes = fixed_window))
+            
+
 
     # Next blocks of code calculate information from data and append them to main info df.
     list_bg_fluxes = []
@@ -240,24 +258,50 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
     list_average_bg_uncertainties = []
     list_bg_std = []
     list_peak_significance = []
+    list_flux_average = []
+    list_bg_subtracted_average = []
+    list_average_significance = []
+    #list_average_electron_uncertainties = [] change to new unc determination later
 
+    n = 0
     for channel in channels:
 
-        bg_flux = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart:bgend].mean(skipna=True)
-        list_bg_fluxes.append(bg_flux)
-
-        flux_peak = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart:searchend].max()
-        list_flux_peaks.append(flux_peak)
-
-        peak_timestamp = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart:searchend].idxmax()
-        list_peak_timestamps.append(peak_timestamp)
-
+        b_f = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart:bgend]
+        if len(b_f) ==0:
+            bg_flux = np.nan
+            list_bg_fluxes.append(bg_flux)
+        if len(b_f)!= 0:
+            bg_flux = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart:bgend].mean(skipna=True)
+            list_bg_fluxes.append(bg_flux)
+        
+        f_p = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]]
+        if len(f_p) == 0 :
+            flux_peak = np.nan
+            list_flux_peaks.append(flux_peak)
+        if len(f_p) != 0:
+            flux_peak = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]].max()
+            list_flux_peaks.append(flux_peak)
+            
+        p_t = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]]
+        if len(p_t) == 0:
+            peak_timestamp = np.nan
+            list_peak_timestamps.append(peak_timestamp)
+        if len(p_t) != 0:
+            peak_timestamp = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]].idxmax(skipna = True)
+            list_peak_timestamps.append(peak_timestamp)
+        
+        t_l = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)]
+        
         # First finding the index location of the peak timestamp in uncertainty dataframe and the getting value of that index location.
-        timestamp_loc = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)].index.get_loc(peak_timestamp, method='nearest')
-        peak_electron_uncertainty = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)].iloc[timestamp_loc]
-
-        #peak_electron_uncertainty = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)][peak_timestamp]
-        list_peak_electron_uncertainties.append(peak_electron_uncertainty)
+        if pd.isna(peak_timestamp):
+            list_peak_electron_uncertainties.append(np.nan)
+        if len(t_l) == 0:
+            list_peak_electron_uncertainties.append(np.nan)
+        if len(t_l)!= 0 and pd.isna(peak_timestamp)==False:
+            timestamp_loc = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)].index.get_loc(peak_timestamp, method='nearest')
+            peak_electron_uncertainty = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)].iloc[timestamp_loc]
+            #peak_electron_uncertainty = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)][peak_timestamp]
+            list_peak_electron_uncertainties.append(peak_electron_uncertainty)
 
         average_bg_uncertainty = np.sqrt((df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)]
                                           [bgstart:bgend]**2).sum(axis=0))/len(df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)][bgstart:bgend])
@@ -265,6 +309,18 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
 
         bg_std = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart:bgend].std()
         list_bg_std.append(bg_std)
+        
+        f_a = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]]
+        if len(f_a) == 0:
+            flux_average = np.nan
+            list_flux_average.append(flux_average)
+        if len(f_a) != 0:
+            flux_average = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]].mean(skipna=True)
+            list_flux_average.append(flux_average)
+        
+
+        n = n+1
+
     
     for i in range(0,len(list_flux_peaks)):
 
@@ -274,8 +330,16 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         if list_bg_subtracted_peaks[i]<list_bg_fluxes[i]:
              list_peak_significance[i] = -1
 
+        list_bg_subtracted_average.append(list_flux_average[i]-list_bg_fluxes[i])
+        list_average_significance.append(list_bg_subtracted_average[i]/list_bg_std[i])
+        #sometimes the background can be higher than the peak to need to delete those values (set to nan)
+        if list_bg_subtracted_average[i]<list_bg_fluxes[i]:
+             list_average_significance[i] = -1
 
 
+
+
+    print(list_flux_average)
     df_info['Energy_channel'] = channels
     df_info['Background_flux'] = list_bg_fluxes
     df_info['Flux_peak'] = list_flux_peaks
@@ -284,9 +348,13 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
     df_info['Peak_electron_uncertainty'] = list_peak_electron_uncertainties
     df_info['Bg_electron_uncertainty'] = list_average_bg_uncertainties
     df_info['Peak_significance'] = list_peak_significance
-
-
-
+    df_info['Flux_average'] = list_flux_average
+    #df_info['Average_electron_uncertainty'] = list_average_electron_uncertainties  change to new unc determination later
+    df_info['Bg_subtracted_average'] = list_bg_subtracted_average
+    df_info['Average_significance'] = list_average_significance
+    df_info['Searchstart'] = searchstart
+    df_info['Searchend'] = searchend
+    df_info['Backsub_peak_uncertainty'] = np.sqrt(df_info['Peak_electron_uncertainty']**2 + df_info['Bg_electron_uncertainty']**2)
     # Calculates energy errors for spectrum plot.
     energy_error_low = []
     energy_error_high = []
@@ -310,9 +378,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
     return df_electron_fluxes, df_info, [searchstart, searchend], [e_low, e_high], [instrument, data_type]
 
 # Workaround for STEP data, there's probably a better way in Python to handle this.
-def extract_step_data(df_particles, plotstart, plotend, searchstart, searchend, bgstart, bgend, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_step_data(df_particles, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
 
-    return extract_data(df_particles, df_particles, plotstart, plotend, searchstart, searchend, bgstart, bgend, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
+    return extract_data(df_particles, df_particles, plotstart, plotend,  bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
 
 def make_step_electron_flux(stepdata, mask_conta=True):
     '''
@@ -434,8 +502,8 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, path='',
         plt.text(0.025,0.7, str(energy_bin[0][channel]) + " - " + str(energy_bin[1][channel]) + " MeV", transform=ax.transAxes, size=13)
 
         # Search area vertical lines.
-        ax.axvline(search_area[0], color='black')
-        ax.axvline(search_area[1], color='black')
+        ax.axvline(search_area[0][n-1], color='black')
+        ax.axvline(search_area[1][n-1], color='black')
 
         # Peak vertical line.
         if peak_sig[n-1]<sigma:
@@ -493,7 +561,7 @@ def plot_check(args, bg_subtraction=False, savefig=False, key=''):
 
     plt.show()
 
-def plot_spectrum(args, bg_subtraction=True, savefig=False, path='', key=''):
+def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key=''):
 
     df_info = args[1]
     instrument = args[4][0]
@@ -535,15 +603,103 @@ def plot_spectrum(args, bg_subtraction=True, savefig=False, path='', key=''):
 
 
     # Plots either the background subtracted or raw flux peaks depending on choice.
+    print(df_info['Flux_peak'])
     if(bg_subtraction):
 
         ax = df_info.plot.scatter(x='Primary_energy', y='Bg_subtracted_peak', c='red', label='Flux peaks', figsize=(13,10))
-        ax.errorbar(x=df_info['Primary_energy'], y=df_info['Bg_subtracted_peak'], yerr=df_info['Peak_electron_uncertainty'],
+        ax.errorbar(x=df_info['Primary_energy'], y=df_info['Bg_subtracted_peak'], yerr=df_info['Backsub_peak_uncertainty'],
                     xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
     elif(bg_subtraction == False):
 
         ax = df_info.plot.scatter(x='Primary_energy', y='Flux_peak', c='red', label='Flux peaks', figsize=(13,10))
         ax.errorbar(x=df_info['Primary_energy'], y=df_info['Flux_peak'], yerr=df_info['Peak_electron_uncertainty'],
+                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
+    
+    # Plots background flux and background errorbars in same scatterplot.
+    df_info.plot(kind='scatter', x='Primary_energy', y='Background_flux', c='red', alpha=0.25, ax=ax, label='Background flux')
+    ax.errorbar(x=df_info['Primary_energy'], y=df_info['Background_flux'], yerr=df_info['Bg_electron_uncertainty'], xerr=[df_info['Energy_error_low'],df_info['Energy_error_high']],
+                fmt='.', ecolor='red', alpha=0.15)
+
+    ax.set_yscale('log')
+    ax.set_xscale('log')
+    ax.set_xlabel('Energy [MeV]', size=20)
+    ax.set_ylabel('Flux \n [1/s cm$^2$ sr MeV]', size=20)
+    plt.tick_params(axis='x', which='minor', labelsize=16)
+    ax.xaxis.set_minor_formatter(FormatStrFormatter("%.2f"))
+    #plt.tick_params(axis='y', which='minor')
+    #ax.yaxis.set_minor_formatter(FormatStrFormatter("%.0f"))
+    plt.legend(prop={'size': 18})
+    plt.xticks(size=16)
+    plt.yticks(size=16)
+    plt.grid()
+    plt.title(title_string)
+
+    for label in ax.xaxis.get_ticklabels(which='minor')[1::2]:
+
+        label.set_visible(False)
+    
+    if(path[len(path)-1] != '/'):
+
+        path = path + '/'
+
+    if(savefig):
+
+        plt.savefig(path + filename + str(key) +'.jpg', dpi=300, bbox_inches='tight')
+
+    plt.show()
+
+def plot_spectrum_average(args, bg_subtraction=True, savefig=False, path='', key=''):
+
+    df_info = args[1]
+    instrument = args[4][0]
+    data_type = args[4][1]
+    
+    title_string = instrument.upper() + ', ' + data_type.upper() + ', ' + str(df_info['Plot_period'][0][:-5])
+    filename = 'spectrum-' + str(df_info['Plot_period'][0][:-5]) + '-' + instrument.upper() + '-' + data_type.upper() 
+    
+    if(df_info['Averaging'][0]=='Mean'):
+
+        title_string = title_string + ', ' + df_info['Averaging'][1].split()[2] + ' averaging'
+        filename = filename + '-' + df_info['Averaging'][1].split()[2] + '_averaging'
+
+    elif(df_info['Averaging'][0]=='No averaging'):
+
+        title_string = title_string + ', no averaging'
+        filename = filename + '-no_averaging'
+
+    if(bg_subtraction):
+        
+       title_string = title_string + ', bg subtraction on'
+       filename = filename + '-bg_subtr'
+
+    else:
+
+        title_string = title_string + ', bg subtraction off'
+    
+    if(instrument == 'ept'):
+
+        if(df_info['Ion_contamination_correction'][0] and instrument=='ept'):
+
+            title_string = title_string + ', ion correction on'
+            filename = filename + '-ion_corr'
+
+        elif(df_info['Ion_contamination_correction'][0]==False):
+
+            title_string = title_string + ', ion correction off'
+
+
+
+    # Plots either the background subtracted or raw flux peaks average depending on choice.
+    print(df_info['Bg_subtracted_average'])
+    if(bg_subtraction):
+
+        ax = df_info.plot.scatter(x='Primary_energy', y='Bg_subtracted_average', c='red', label='Flux average', figsize=(13,10))
+        ax.errorbar(x=df_info['Primary_energy'], y=df_info['Bg_subtracted_average'], yerr=df_info['Backsub_peak_uncertainty'],
+                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
+    elif(bg_subtraction == False):
+
+        ax = df_info.plot.scatter(x='Primary_energy', y='Flux_average', c='red', label='Flux average', figsize=(13,10))
+        ax.errorbar(x=df_info['Primary_energy'], y=df_info['Flux_average'], yerr=df_info['Peak_electron_uncertainty'],
                     xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
     
     # Plots background flux and background errorbars in same scatterplot.
