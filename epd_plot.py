@@ -4,7 +4,7 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import FormatStrFormatter
 from adjustText import adjust_text
 
-def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, searchend, bgstart, bgend, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, searchend, bgstart, bgend, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False, frac_nan_threashold=0.4):
     """ determines an energy spectrum from time series data for any of the Solar Orbiter / EPD sensors
 
     Parameters
@@ -104,7 +104,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
             channels = range(0,48)
 
             step_data = make_step_electron_flux(df_electrons, mask_conta=masking)
-            print(step_data[0].index)
+            #print(step_data[0].index)
             
             df_electron_fluxes = step_data[0][plotstart:plotend]
             df_electron_uncertainties = step_data[1][plotstart:plotend]
@@ -114,7 +114,6 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
 
         # Cleans up negative flux values in STEP data.
         df_electron_fluxes[df_electron_fluxes<0] = np.NaN
-
     if(averaging_mode == 'mean'):
 
         if(instrument=='ept'):
@@ -217,17 +216,22 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         list_bg_fluxes.append(bg_flux)
 
         flux_peak = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart:searchend].max()
+        
+        # check if a large enough fraction of data points are not nan. If there are too many nan's in the search time interval, then exclude the channel from the spectrum (set nan)
+        data = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart:searchend]
+        frac_nonan = 1 - np.sum(np.isnan(data)) / len(data) # fraction of data in interval that is not nan
+        print(channel, frac_nonan)
+        if frac_nonan < frac_nan_threashold:
+            flux_peak = np.nan
+            peak_electron_uncertainty = np.nan
+        
         list_flux_peaks.append(flux_peak)
-
+        list_peak_electron_uncertainties.append(peak_electron_uncertainty)
         peak_timestamp = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart:searchend].idxmax()
-        list_peak_timestamps.append(peak_timestamp)
-
-        # First finding the index location of the peak timestamp in uncertainty dataframe and the getting value of that index location.
+        list_peak_timestamps.append(peak_timestamp) 
+        # First finding the index location of the peak timestamp in uncertainty dataframe and then getting value of that index location.
         timestamp_loc = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)].index.get_loc(peak_timestamp, method='nearest')
         peak_electron_uncertainty = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)].iloc[timestamp_loc]
-
-        #peak_electron_uncertainty = df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)][peak_timestamp]
-        list_peak_electron_uncertainties.append(peak_electron_uncertainty)
 
         average_bg_uncertainty = np.sqrt((df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)]
                                           [bgstart:bgend]**2).sum(axis=0))/len(df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)][bgstart:bgend])
@@ -281,9 +285,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
     return df_electron_fluxes, df_info, [searchstart, searchend], [e_low, e_high], [instrument, data_type]
 
 # Workaround for STEP data, there's probably a better way in Python to handle this.
-def extract_step_data(df_particles, plotstart, plotend, searchstart, searchend, bgstart, bgend, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_step_data(df_particles, plotstart, plotend, searchstart, searchend, bgstart, bgend, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False, frac_nan_threashold=0.4):
 
-    return extract_data(df_particles, df_particles, plotstart, plotend, searchstart, searchend, bgstart, bgend, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
+    return extract_data(df_particles, df_particles, plotstart, plotend, searchstart, searchend, bgstart, bgend, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr, frac_nan_threashold=frac_nan_threashold)
 
 def make_step_electron_flux(stepdata, mask_conta=True):
     '''
