@@ -159,7 +159,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         ion_string = ''
 
     # Main information dataframe containing most of the required data.
-    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[]})
+    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[]})
 
     # Adds basic metadata to main info df.
     df_info['Plot_period'] = [plotstart]+[plotend]+['']*(len(channels)-2)
@@ -255,8 +255,8 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
     df_info['Bg_electron_uncertainty'] = list_average_bg_uncertainties
     df_info['Peak_significance'] = list_peak_significance
     df_info['Backsub_peak_uncertainty'] = np.sqrt(df_info['Peak_electron_uncertainty']**2 + df_info['Bg_electron_uncertainty']**2)
+    df_info['rel_backsub_peak_err'] = np.abs(df_info['Backsub_peak_uncertainty'] / df_info['Bg_subtracted_peak'])
     
-
 
     # Calculates energy errors for spectrum plot.
     energy_error_low = []
@@ -336,8 +336,9 @@ def average_flux_error(flux_err: pd.DataFrame) -> pd.Series:
 
     return np.sqrt((flux_err ** 2).sum(axis=0)) / len(flux_err.values)
 
-def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, path='', key=''):
+def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, rel_err_threashold=0.5, path='', key=''):
     peak_sig = args[1]['Peak_significance']
+    rel_err = args[1]['rel_backsub_peak_err']
     hours = mdates.HourLocator(interval = 1)
     df_electron_fluxes = args[0]
     df_info = args[1]
@@ -409,9 +410,9 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, path='',
         ax.axvline(search_area[1], color='black')
 
         # Peak vertical line.
-        if peak_sig[n-1]<sigma:
+        if (peak_sig[n-1] < sigma) or (rel_err[n-1] > rel_err_threashold): # if the peak is not significant or the relative error too large, we discard the energy channel
             ax.axvline(df_info['Peak_timestamp'][n-1], color='gray')
-        if peak_sig[n-1]>sigma:
+        if (peak_sig[n-1] >= sigma) and (rel_err[n-1] <= rel_err_threashold):
             ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
 
         # Background measurement area.
