@@ -43,8 +43,59 @@ def evolt2speed(ekin, which):
 
 
 
-def extract_data(df_protons, df_electrons, plotstart, plotend,  bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False, frac_nan_threashold=0.4):
+    """determines an energy spectrum from time series data for any of the Solar Orbiter / EPD sensors
+        uses energy-dependent time windows to determine the flux points for the spectrum. The dependence 
+        is determined according to an expected velocity dispersion assuming a certain solar injection time (t_inj) and a traval distance (travel_distance)
 
+    Parameters
+    ----------
+    df_protons : pandas DataFrame
+        contains proton (ion) data if instrument is 'het' ('ept')
+    df_electrons : pandas DataFrame
+        electron data
+    plotstart : string
+        start time of the time series plot, e.g., '2020-11-18-0000'
+    plotend : string
+        end time of the time series plot, e.g., '2020-11-18-2230'
+    bgstart : string
+        start time of the background time interval (used for background subtraction)
+    bgend : string
+        end time of the background time interval (used for background subtraction)
+    t_inj : [type]                                                           ************ needs still to be filled ************
+        [description]
+    travel_distance : [type]
+        [description]
+    travel_distance_second_slope : [type], optional
+        [description], by default None
+    fixed_window : [type], optional
+        [description], by default None
+    instrument : str, optional
+        'ept', 'het', or 'step'; by default 'ept'
+    data_type : str, optional
+        which data level (e.g., low latency (ll) or level2 (l2)) is used. This affects the number of energy channels; by default 'l2'
+    averaging_mode : str, optional
+        averaging of the data, 'mean', 'rolling_window', or 'none'; by default 'none'
+    averaging : int, optional
+        number of minutes used for averaging, by default 2
+    masking : bool, optional
+        Refers only to STEP data. If true, time intervals with significant (5 sigma) ion contamination are masked; by default False
+    ion_conta_corr : bool, optional
+        Refers only to EPT data. If true, ion contamination correction is applied; by default False
+    frac_nan_threashold: float
+        is used to to check if there is enough non-nan flux data points in the search-period interval. 
+        If not, the flux and uncertainty value of that energy channel are set to nan and therefore excluded from the spectrum; by default0.4
+
+    Returns
+    -------
+    df_electron_fluxes : pandas DataFrame
+        data frame that cotains the electron flux data with applied averaging and optional contamination correction (EPT) or masking (STEP)
+    df_info : pandas DataFrame
+        data frame that contains the spectrum data and all its metadata (which is saved to csv in the function write_to_csv())
+    [searchstart, searchend]: list of strings
+    [e_low, e_high] : list of float
+    [instrument, data_type] . list of strings
+    """
     # Takes proton and electron flux and uncertainty values from original data.
     if(instrument != 'step'):
 
@@ -159,7 +210,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  bgstart, bgend, 
         ion_string = ''
 
     # Main information dataframe containing most of the required data.
-    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[]})
+    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[], 'frac_nonan':[]})
 
     # Adds basic metadata to main info df.
     df_info['Plot_period'] = [plotstart]+[plotend]+['']*(len(channels)-2)
@@ -261,6 +312,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  bgstart, bgend, 
     list_flux_average = []
     list_bg_subtracted_average = []
     list_average_significance = []
+    list_frac_nonan = []
     #list_average_electron_uncertainties = [] change to new unc determination later
 
     n = 0
@@ -277,10 +329,14 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  bgstart, bgend, 
         f_p = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]]
         if len(f_p) == 0 :
             flux_peak = np.nan
-            list_flux_peaks.append(flux_peak)
+            #list_flux_peaks.append(flux_peak)
         if len(f_p) != 0:
             flux_peak = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]].max()
-            list_flux_peaks.append(flux_peak)
+        list_flux_peaks.append(flux_peak)
+
+        # check if a large enough fraction of data points are not nan. If there are too many nan's in the search time interval, frac_nonan can be used to exclude the channel from the spectrum
+        frac_nonan = 1 - np.sum(np.isnan(f_p)) / len(f_p) # fraction of data in interval that is not nan
+        list_frac_nonan.append(frac_nonan)
             
         p_t = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]]
         if len(p_t) == 0:
@@ -355,6 +411,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  bgstart, bgend, 
     df_info['Searchstart'] = searchstart
     df_info['Searchend'] = searchend
     df_info['Backsub_peak_uncertainty'] = np.sqrt(df_info['Peak_electron_uncertainty']**2 + df_info['Bg_electron_uncertainty']**2)
+    df_info['rel_backsub_peak_err'] = np.abs(df_info['Backsub_peak_uncertainty'] / df_info['Bg_subtracted_peak'])
+    df_info['frac_nonan'] = list_frac_nonan
+
     # Calculates energy errors for spectrum plot.
     energy_error_low = []
     energy_error_high = []
@@ -378,9 +437,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  bgstart, bgend, 
     return df_electron_fluxes, df_info, [searchstart, searchend], [e_low, e_high], [instrument, data_type]
 
 # Workaround for STEP data, there's probably a better way in Python to handle this.
-def extract_step_data(df_particles, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_step_data(df_particles, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False, frac_nan_threashold=0.4):
 
-    return extract_data(df_particles, df_particles, plotstart, plotend,  bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
+    return extract_data(df_particles, df_particles, plotstart, plotend,  bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr, frac_nan_threashold=frac_nan_threashold)
 
 def make_step_electron_flux(stepdata, mask_conta=True):
     '''
@@ -433,7 +492,27 @@ def average_flux_error(flux_err: pd.DataFrame) -> pd.Series:
 
     return np.sqrt((flux_err ** 2).sum(axis=0)) / len(flux_err.values)
 
-def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, path='', key=''):
+def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, path='', key='', frac_nan_threashold=0.4):
+    """[summary]
+
+    Parameters
+    ----------
+    args : [type]
+        [description]
+    bg_subtraction : bool, optional
+        [description], by default False
+    savefig : bool, optional
+        [description], by default False
+    sigma : int, optional
+        [description], by default 3
+    path : str, optional
+        [description], by default ''
+    key : str, optional
+        [description], by default ''
+    frac_nan_threashold: float
+        is used to to check if there is enough non-nan flux data points in the search-period interval. 
+        If not, the flux and uncertainty value of that energy channel are set to nan and therefore excluded from the spectrum; by default0.4
+    """    
     peak_sig = args[1]['Peak_significance']
     hours = mdates.HourLocator(interval = 1)
     df_electron_fluxes = args[0]
@@ -506,10 +585,11 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, path='',
         ax.axvline(search_area[1][n-1], color='black')
 
         # Peak vertical line.
-        if peak_sig[n-1]<sigma:
-            ax.axvline(df_info['Peak_timestamp'][n-1], color='gray')
-        if peak_sig[n-1]>sigma:
-            ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
+        if df_info['frac_nonan'][n-1] > frac_nan_threashold:  # we only plot a line if the fraction of non-nan data points in the search interval is larger than frac_nan_threashold
+            if peak_sig[n-1]<sigma:
+                ax.axvline(df_info['Peak_timestamp'][n-1], color='gray')
+            if peak_sig[n-1]>sigma:
+                ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
 
         # Background measurement area.
         ax.axvspan(df_info['Bg_period'][0], df_info['Bg_period'][1], color='gray', alpha=0.25)
