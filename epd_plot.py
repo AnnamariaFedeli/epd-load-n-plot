@@ -224,9 +224,10 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, searchstart, sear
         data = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart:searchend]
         frac_nonan = 1 - np.sum(np.isnan(data)) / len(data) # fraction of data in interval that is not nan
         list_frac_nonan.append(frac_nonan)
-        if frac_nonan < frac_nan_threashold:
-            flux_peak = np.nan
-            peak_electron_uncertainty = np.nan
+        # we remove this block because it should rather be done in the fitting procedure functions and not here
+        # if frac_nonan < frac_nan_threashold:
+        #     flux_peak = np.nan
+        #     peak_electron_uncertainty = np.nan
         
         list_flux_peaks.append(flux_peak)
         list_peak_electron_uncertainties.append(peak_electron_uncertainty)
@@ -413,6 +414,8 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, rel_err_
         plt.text(0.025,0.7, str(energy_bin[0][channel]) + " - " + str(energy_bin[1][channel]) + " MeV", transform=ax.transAxes, size=13)
 
         # Search area vertical lines.
+        
+        
         ax.axvline(search_area[0], color='black')
         ax.axvline(search_area[1], color='black')
 
