@@ -335,7 +335,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
         list_flux_peaks.append(flux_peak)
 
         # check if a large enough fraction of data points are not nan. If there are too many nan's in the search time interval, frac_nonan can be used to exclude the channel from the spectrum
-        frac_nonan = 1 - np.sum(np.isnan(f_p)) / len(f_p) # fraction of data in interval that is not nan
+        frac_nonan = 1 - np.sum(np.isnan(f_p)) / len(f_p) # fraction of data in interval that is NOT nan
         list_frac_nonan.append(frac_nonan)
             
         p_t = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]]
@@ -492,7 +492,7 @@ def average_flux_error(flux_err: pd.DataFrame) -> pd.Series:
 
     return np.sqrt((flux_err ** 2).sum(axis=0)) / len(flux_err.values)
 
-def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, path='', key='', frac_nan_threashold=0.4):
+def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', key='', frac_nan_threashold=0.4, rel_err_threashold=0.5):
     """[summary]
 
     Parameters
@@ -514,7 +514,8 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, path='',
         If not, the flux and uncertainty value of that energy channel are set to nan and therefore excluded from the spectrum; by default0.4
     """    
     peak_sig = args[1]['Peak_significance']
-    hours = mdates.HourLocator(interval = 1)
+    rel_err = args[1]['rel_backsub_peak_err']
+    #hours = mdates.HourLocator(interval = 1)
     df_electron_fluxes = args[0]
     df_info = args[1]
     search_area = args[2]
@@ -585,11 +586,14 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma = 3, path='',
         ax.axvline(search_area[1][n-1], color='black')
 
         # Peak vertical line.
-        if df_info['frac_nonan'][n-1] > frac_nan_threashold:  # we only plot a line if the fraction of non-nan data points in the search interval is larger than frac_nan_threashold
-            if peak_sig[n-1]<sigma:
-                ax.axvline(df_info['Peak_timestamp'][n-1], color='gray')
-            if peak_sig[n-1]>sigma:
-                ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
+        if  (rel_err[n-1] > rel_err_threashold): # if the relative error too large, we exlcude the channel
+            ax.axvline(df_info['Peak_timestamp'][n-1], linestyle=':', linewidth=4, color='orange')
+        if df_info['frac_nonan'][n-1] < frac_nan_threashold:  # we only plot a line if the fraction of non-nan data points in the search interval is larger than frac_nan_threashold
+            ax.axvline(df_info['Peak_timestamp'][n-1], linestyle='--', linewidth=3, color='gray')
+        if (peak_sig[n-1] < sigma): # if the peak is not significant, we discard the energy channel
+            ax.axvline(df_info['Peak_timestamp'][n-1], linestyle='-.', linewidth=2, color='blue')
+        if (peak_sig[n-1] >= sigma) and (rel_err[n-1] <= rel_err_threashold) and (df_info['frac_nonan'][n-1] > frac_nan_threashold):
+            ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
 
         # Background measurement area.
         ax.axvspan(df_info['Bg_period'][0], df_info['Bg_period'][1], color='gray', alpha=0.25)
@@ -641,7 +645,7 @@ def plot_check(args, bg_subtraction=False, savefig=False, key=''):
 
     plt.show()
 
-def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key=''):
+def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key='', sigma=3, frac_nan_threashold=0.4, rel_err_threashold=0.5):
 
     df_info = args[1]
     instrument = args[4][0]
@@ -680,25 +684,31 @@ def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key=''
 
             title_string = title_string + ', ion correction off'
 
-
+    # this is to plot the points that are excluded due to different reasons 
+    df_nan = df_info.where((df_info['frac_nonan'] < frac_nan_threashold), np.nan)
+    df_no_sig = df_info.where((df_info['Peak_significance'] < sigma), np.nan)
+    df_rel_err = df_info.where((df_info['rel_backsub_peak_err'] > rel_err_threashold), np.nan)
 
     # Plots either the background subtracted or raw flux peaks depending on choice.
     print(df_info['Flux_peak'])
     if(bg_subtraction):
-
-        ax = df_info.plot.scatter(x='Primary_energy', y='Bg_subtracted_peak', c='red', label='Flux peaks', figsize=(13,10))
+        f, ax = plt.subplots(figsize=(13,10)) 
         ax.errorbar(x=df_info['Primary_energy'], y=df_info['Bg_subtracted_peak'], yerr=df_info['Backsub_peak_uncertainty'],
-                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
+                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], color='red', fmt='o', ecolor='red', zorder=0, label='Flux peaks')
+        ax.plot(df_nan.Primary_energy, df_nan.Bg_subtracted_peak, 'o', markersize=15, c='gray', label='excluded (NaNs)')
+        ax.plot(df_no_sig.Primary_energy, df_no_sig.Bg_subtracted_peak, 'o', c='blue', markersize=11, label='excluded (sigma)')
+        ax.plot(df_rel_err.Primary_energy, df_rel_err.Bg_subtracted_peak, 'o', c='orange', markersize=6, label='excluded (rel error)')
     elif(bg_subtraction == False):
-
-        ax = df_info.plot.scatter(x='Primary_energy', y='Flux_peak', c='red', label='Flux peaks', figsize=(13,10))
+        f, ax = plt.subplots(figsize=(13,10))
         ax.errorbar(x=df_info['Primary_energy'], y=df_info['Flux_peak'], yerr=df_info['Peak_electron_uncertainty'],
-                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
-    
+                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='o', color='red',ecolor='red', zorder=0, label='Flux peaks')
+        ax.plot(df_nan.Primary_energy, df_nan.Flux_peak, 'o', markersize=15, c='gray', label='excluded (NaNs)')
+        ax.plot(df_no_sig.Primary_energy, df_no_sig.Flux_peak, 'o', markersize=11, c='blue', label='excluded (sigma)')
+        ax.plot(df_rel_err.Primary_energy, df_rel_err.Flux_peak, 'o', markersize=6, c='orange', label='excluded (rel error)')
+
     # Plots background flux and background errorbars in same scatterplot.
-    df_info.plot(kind='scatter', x='Primary_energy', y='Background_flux', c='red', alpha=0.25, ax=ax, label='Background flux')
     ax.errorbar(x=df_info['Primary_energy'], y=df_info['Background_flux'], yerr=df_info['Bg_electron_uncertainty'], xerr=[df_info['Energy_error_low'],df_info['Energy_error_high']],
-                fmt='.', ecolor='red', alpha=0.15)
+                fmt='o', color='red', ecolor='red', alpha=0.15, label='Background flux')
 
     ax.set_yscale('log')
     ax.set_xscale('log')
@@ -728,7 +738,7 @@ def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key=''
 
     plt.show()
 
-def plot_spectrum_average(args, bg_subtraction=True, savefig=False, path='', key=''):
+def plot_spectrum_average(args, bg_subtraction=True, savefig=False, path='', key='', sigma=3, frac_nan_threashold=0.4, rel_err_threashold=0.5):
 
     df_info = args[1]
     instrument = args[4][0]
@@ -767,25 +777,42 @@ def plot_spectrum_average(args, bg_subtraction=True, savefig=False, path='', key
 
             title_string = title_string + ', ion correction off'
 
-
+    # this is to plot the points that are excluded due to different reasons 
+    df_nan = df_info.where((df_info['frac_nonan'] < frac_nan_threshold), np.nan)
+    df_no_sig = df_info.where((df_info['Peak_significance'] < sigma), np.nan)
+    df_rel_err = df_info.where((df_info['rel_backsub_peak_err'] > rel_err_threashold), np.nan)
 
     # Plots either the background subtracted or raw flux peaks average depending on choice.
     print(df_info['Bg_subtracted_average'])
     if(bg_subtraction):
-
-        ax = df_info.plot.scatter(x='Primary_energy', y='Bg_subtracted_average', c='red', label='Flux average', figsize=(13,10))
+        f, ax = plt.subplots(figsize=(13,10)) 
         ax.errorbar(x=df_info['Primary_energy'], y=df_info['Bg_subtracted_average'], yerr=df_info['Backsub_peak_uncertainty'],
-                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
+                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], color='red', fmt='o', ecolor='red', zorder=0, label='Flux average')
+        ax.plot(df_nan.Primary_energy, df_nan.Bg_subtracted_average, 'o', markersize=15, c='gray', label='excluded (NaNs)')
+        ax.plot(df_no_sig.Primary_energy, df_no_sig.Bg_subtracted_average, 'o', c='blue', markersize=11, label='excluded (sigma)')
+        ax.plot(df_rel_err.Primary_energy, df_rel_err.Bg_subtracted_average, 'o', c='orange', markersize=6, label='excluded (rel error)')
+    
+        # ax = df_info.plot.scatter(x='Primary_energy', y='Bg_subtracted_average', c='red', label='Flux average', figsize=(13,10))
+        # ax.errorbar(x=df_info['Primary_energy'], y=df_info['Bg_subtracted_average'], yerr=df_info['Backsub_peak_uncertainty'],
+        #             xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
     elif(bg_subtraction == False):
-
-        ax = df_info.plot.scatter(x='Primary_energy', y='Flux_average', c='red', label='Flux average', figsize=(13,10))
+        f, ax = plt.subplots(figsize=(13,10))
         ax.errorbar(x=df_info['Primary_energy'], y=df_info['Flux_average'], yerr=df_info['Peak_electron_uncertainty'],
-                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
+                    xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='o', color='red',ecolor='red', zorder=0, label='Flux average')
+        ax.plot(df_nan.Primary_energy, df_nan.Flux_average, 'o', markersize=15, c='gray', label='excluded (NaNs)')
+        ax.plot(df_no_sig.Primary_energy, df_no_sig.Flux_average, 'o', markersize=11, c='blue', label='excluded (sigma)')
+        ax.plot(df_rel_err.Primary_energy, df_rel_err.Flux_average, 'o', markersize=6, c='orange', label='excluded (rel error)')
+
+        # ax = df_info.plot.scatter(x='Primary_energy', y='Flux_average', c='red', label='Flux average', figsize=(13,10))
+        # ax.errorbar(x=df_info['Primary_energy'], y=df_info['Flux_average'], yerr=df_info['Peak_electron_uncertainty'],
+        #             xerr=[df_info['Energy_error_low'], df_info['Energy_error_high']], fmt='.', ecolor='red', alpha=0.5)
     
     # Plots background flux and background errorbars in same scatterplot.
-    df_info.plot(kind='scatter', x='Primary_energy', y='Background_flux', c='red', alpha=0.25, ax=ax, label='Background flux')
     ax.errorbar(x=df_info['Primary_energy'], y=df_info['Background_flux'], yerr=df_info['Bg_electron_uncertainty'], xerr=[df_info['Energy_error_low'],df_info['Energy_error_high']],
-                fmt='.', ecolor='red', alpha=0.15)
+                fmt='o', color='red', ecolor='red', alpha=0.15, label='Background flux')
+    # df_info.plot(kind='scatter', x='Primary_energy', y='Background_flux', c='red', alpha=0.25, ax=ax, label='Background flux')
+    # ax.errorbar(x=df_info['Primary_energy'], y=df_info['Background_flux'], yerr=df_info['Bg_electron_uncertainty'], xerr=[df_info['Energy_error_low'],df_info['Energy_error_high']],
+    #             fmt='.', ecolor='red', alpha=0.15)
 
     ax.set_yscale('log')
     ax.set_xscale('log')
