@@ -43,7 +43,7 @@ def evolt2speed(ekin, which):
 
 
 
-def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False, frac_nan_threashold=0.4):
+def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
     """determines an energy spectrum from time series data for any of the Solar Orbiter / EPD sensors
         uses energy-dependent time windows to determine the flux points for the spectrum. The dependence 
         is determined according to an expected velocity dispersion assuming a certain solar injection time (t_inj) and a traval distance (travel_distance)
@@ -82,9 +82,6 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
         Refers only to STEP data. If true, time intervals with significant (5 sigma) ion contamination are masked; by default False
     ion_conta_corr : bool, optional
         Refers only to EPT data. If true, ion contamination correction is applied; by default False
-    frac_nan_threashold: float
-        is used to to check if there is enough non-nan flux data points in the search-period interval. 
-        If not, the flux and uncertainty value of that energy channel are set to nan and therefore excluded from the spectrum; by default0.4
 
     Returns
     -------
@@ -437,9 +434,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
     return df_electron_fluxes, df_info, [searchstart, searchend], [e_low, e_high], [instrument, data_type]
 
 # Workaround for STEP data, there's probably a better way in Python to handle this.
-def extract_step_data(df_particles, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False, frac_nan_threashold=0.4):
+def extract_step_data(df_particles, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
 
-    return extract_data(df_particles, df_particles, plotstart, plotend,  bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr, frac_nan_threashold=frac_nan_threashold)
+    return extract_data(df_particles, df_particles, plotstart, plotend,  bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
 
 def make_step_electron_flux(stepdata, mask_conta=True):
     '''
@@ -492,7 +489,7 @@ def average_flux_error(flux_err: pd.DataFrame) -> pd.Series:
 
     return np.sqrt((flux_err ** 2).sum(axis=0)) / len(flux_err.values)
 
-def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', key='', frac_nan_threashold=0.4, rel_err_threashold=0.5):
+def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', key='', frac_nan_threshold=0.4, rel_err_threshold=0.5):
     """[summary]
 
     Parameters
@@ -509,7 +506,7 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', k
         [description], by default ''
     key : str, optional
         [description], by default ''
-    frac_nan_threashold: float
+    frac_nan_threshold: float
         is used to to check if there is enough non-nan flux data points in the search-period interval. 
         If not, the flux and uncertainty value of that energy channel are set to nan and therefore excluded from the spectrum; by default0.4
     """    
@@ -586,13 +583,13 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', k
         ax.axvline(search_area[1][n-1], color='black')
 
         # Peak vertical line.
-        if  (rel_err[n-1] > rel_err_threashold): # if the relative error too large, we exlcude the channel
+        if  (rel_err[n-1] > rel_err_threshold): # if the relative error too large, we exlcude the channel
             ax.axvline(df_info['Peak_timestamp'][n-1], linestyle=':', linewidth=4, color='orange')
-        if df_info['frac_nonan'][n-1] < frac_nan_threashold:  # we only plot a line if the fraction of non-nan data points in the search interval is larger than frac_nan_threashold
+        if df_info['frac_nonan'][n-1] < frac_nan_threshold:  # we only plot a line if the fraction of non-nan data points in the search interval is larger than frac_nan_threshold
             ax.axvline(df_info['Peak_timestamp'][n-1], linestyle='--', linewidth=3, color='gray')
         if (peak_sig[n-1] < sigma): # if the peak is not significant, we discard the energy channel
             ax.axvline(df_info['Peak_timestamp'][n-1], linestyle='-.', linewidth=2, color='blue')
-        if (peak_sig[n-1] >= sigma) and (rel_err[n-1] <= rel_err_threashold) and (df_info['frac_nonan'][n-1] > frac_nan_threashold):
+        if (peak_sig[n-1] >= sigma) and (rel_err[n-1] <= rel_err_threshold) and (df_info['frac_nonan'][n-1] > frac_nan_threshold):
             ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
 
         # Background measurement area.
@@ -645,7 +642,7 @@ def plot_check(args, bg_subtraction=False, savefig=False, key=''):
 
     plt.show()
 
-def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key='', sigma=3, frac_nan_threashold=0.4, rel_err_threashold=0.5):
+def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key='', sigma=3, frac_nan_threshold=0.4, rel_err_threshold=0.5):
 
     df_info = args[1]
     instrument = args[4][0]
@@ -685,9 +682,9 @@ def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key=''
             title_string = title_string + ', ion correction off'
 
     # this is to plot the points that are excluded due to different reasons 
-    df_nan = df_info.where((df_info['frac_nonan'] < frac_nan_threashold), np.nan)
+    df_nan = df_info.where((df_info['frac_nonan'] < frac_nan_threshold), np.nan)
     df_no_sig = df_info.where((df_info['Peak_significance'] < sigma), np.nan)
-    df_rel_err = df_info.where((df_info['rel_backsub_peak_err'] > rel_err_threashold), np.nan)
+    df_rel_err = df_info.where((df_info['rel_backsub_peak_err'] > rel_err_threshold), np.nan)
 
     # Plots either the background subtracted or raw flux peaks depending on choice.
     print(df_info['Flux_peak'])
@@ -738,7 +735,7 @@ def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key=''
 
     plt.show()
 
-def plot_spectrum_average(args, bg_subtraction=True, savefig=False, path='', key='', sigma=3, frac_nan_threashold=0.4, rel_err_threashold=0.5):
+def plot_spectrum_average(args, bg_subtraction=True, savefig=False, path='', key='', sigma=3, frac_nan_threshold=0.4, rel_err_threshold=0.5):
 
     df_info = args[1]
     instrument = args[4][0]
@@ -780,7 +777,7 @@ def plot_spectrum_average(args, bg_subtraction=True, savefig=False, path='', key
     # this is to plot the points that are excluded due to different reasons 
     df_nan = df_info.where((df_info['frac_nonan'] < frac_nan_threshold), np.nan)
     df_no_sig = df_info.where((df_info['Peak_significance'] < sigma), np.nan)
-    df_rel_err = df_info.where((df_info['rel_backsub_peak_err'] > rel_err_threashold), np.nan)
+    df_rel_err = df_info.where((df_info['rel_backsub_peak_err'] > rel_err_threshold), np.nan)
 
     # Plots either the background subtracted or raw flux peaks average depending on choice.
     print(df_info['Bg_subtracted_average'])
