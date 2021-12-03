@@ -260,6 +260,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
     for energy in primary_energies:
         velocity.append(evolt2speed(energy, 2))
 
+
+
+
     # Using calculated velocity to find the right search period
     # the travel distance from au to km
     travel_distance = travel_distance*1.496E8
