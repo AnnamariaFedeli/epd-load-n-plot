@@ -260,6 +260,8 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
     for energy in primary_energies:
         velocity.append(evolt2speed(energy, 2))
 
+
+# 
     # Using calculated velocity to find the right search period
     # the travel distance from au to km
     travel_distance = travel_distance*1.496E8
@@ -583,14 +585,15 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', k
         ax.axvline(search_area[1][n-1], color='black')
 
         # Peak vertical line.
-        if  (rel_err[n-1] > rel_err_threshold): # if the relative error too large, we exlcude the channel
-            ax.axvline(df_info['Peak_timestamp'][n-1], linestyle=':', linewidth=4, color='orange')
-        if df_info['frac_nonan'][n-1] < frac_nan_threshold:  # we only plot a line if the fraction of non-nan data points in the search interval is larger than frac_nan_threshold
-            ax.axvline(df_info['Peak_timestamp'][n-1], linestyle='--', linewidth=3, color='gray')
-        if (peak_sig[n-1] < sigma): # if the peak is not significant, we discard the energy channel
-            ax.axvline(df_info['Peak_timestamp'][n-1], linestyle='-.', linewidth=2, color='blue')
-        if (peak_sig[n-1] >= sigma) and (rel_err[n-1] <= rel_err_threshold) and (df_info['frac_nonan'][n-1] > frac_nan_threshold):
-            ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
+        if df_info['Peak_timestamp'][n-1] is not pd.NaT:
+            if  (rel_err[n-1] > rel_err_threshold): # if the relative error too large, we exlcude the channel
+                ax.axvline(df_info['Peak_timestamp'][n-1], linestyle=':', linewidth=4, color='orange')
+            if df_info['frac_nonan'][n-1] < frac_nan_threshold:  # we only plot a line if the fraction of non-nan data points in the search interval is larger than frac_nan_threshold
+                ax.axvline(df_info['Peak_timestamp'][n-1], linestyle='--', linewidth=3, color='gray')
+            if (peak_sig[n-1] < sigma): # if the peak is not significant, we discard the energy channel
+                ax.axvline(df_info['Peak_timestamp'][n-1], linestyle='-.', linewidth=2, color='blue')
+            if (peak_sig[n-1] >= sigma) and (rel_err[n-1] <= rel_err_threshold) and (df_info['frac_nonan'][n-1] > frac_nan_threshold):
+                ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
 
         # Background measurement area.
         ax.axvspan(df_info['Bg_period'][0], df_info['Bg_period'][1], color='gray', alpha=0.25)
