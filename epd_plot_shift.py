@@ -394,7 +394,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
 
 
 
-    print(list_flux_average)
+    #print(list_flux_average)
     df_info['Energy_channel'] = channels
     df_info['Background_flux'] = list_bg_fluxes
     df_info['Flux_peak'] = list_flux_peaks
@@ -690,7 +690,7 @@ def plot_spectrum_peak(args, bg_subtraction=True, savefig=False, path='', key=''
     df_rel_err = df_info.where((df_info['rel_backsub_peak_err'] > rel_err_threshold), np.nan)
 
     # Plots either the background subtracted or raw flux peaks depending on choice.
-    print(df_info['Flux_peak'])
+    #print(df_info['Flux_peak'])
     if(bg_subtraction):
         f, ax = plt.subplots(figsize=(13,10)) 
         ax.errorbar(x=df_info['Primary_energy'], y=df_info['Bg_subtracted_peak'], yerr=df_info['Backsub_peak_uncertainty'],
