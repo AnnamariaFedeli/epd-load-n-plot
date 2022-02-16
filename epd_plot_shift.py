@@ -43,7 +43,7 @@ def evolt2speed(ekin, which):
 
 
 
-def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t_inj, bg_distance_from_window = None, travel_distance = 0,  travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
     """determines an energy spectrum from time series data for any of the Solar Orbiter / EPD sensors
         uses energy-dependent time windows to determine the flux points for the spectrum. The dependence 
         is determined according to an expected velocity dispersion assuming a certain solar injection time (t_inj) and a traval distance (travel_distance)
@@ -207,12 +207,13 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
         ion_string = ''
 
     # Main information dataframe containing most of the required data.
-    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[], 'frac_nonan':[]})
+    #df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[], 'frac_nonan':[]})
+    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[], 'frac_nonan':[]})
 
     # Adds basic metadata to main info df.
     df_info['Plot_period'] = [plotstart]+[plotend]+['']*(len(channels)-2)
     #df_info['Search_period'] = [searchstart]+[searchend]+['']*(len(channels)-2)
-    df_info['Bg_period'] = [bgstart]+[bgend]+['']*(len(channels)-2)
+    #df_info['Bg_period'] = [bgstart]+[bgend]+['']*(len(channels)-2)
 
     if(instrument=='ept'):
 
@@ -298,6 +299,21 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
             searchend.append(i+pd.Timedelta(minutes = fixed_window))
             
 
+    if bg_distance_from_window == None:
+        bg_start = bgstart
+        bg_end = bgend
+        bgstart = []
+        bgend   = []
+        for i in range(0, len(searchstart)):
+            bgstart.append(bg_start)
+            bgend.append(bg_end)
+    # fix bg window 
+    if bg_distance_from_window != None:
+        bgstart = []
+        bgend   = []
+        for i in range(0,len(searchstart)):
+            bgstart.append(searchstart[i]-pd.Timedelta(minutes = bg_distance_from_window))
+            bgend.append(searchend[i]-pd.Timedelta(minutes = bg_distance_from_window))
 
     # Next blocks of code calculate information from data and append them to main info df.
     list_bg_fluxes = []
@@ -315,14 +331,16 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
     #list_average_electron_uncertainties = [] change to new unc determination later
 
     n = 0
+   
     for channel in channels:
-
-        b_f = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart:bgend]
+        #print(n)
+        #print(len(bgstart))
+        b_f = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart[n]:bgend[n]]
         if len(b_f) ==0:
             bg_flux = np.nan
             list_bg_fluxes.append(bg_flux)
         if len(b_f)!= 0:
-            bg_flux = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart:bgend].mean(skipna=True)
+            bg_flux = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart[n]:bgend[n]].mean(skipna=True)
             list_bg_fluxes.append(bg_flux)
         
         f_p = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]]
@@ -359,10 +377,11 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
             list_peak_electron_uncertainties.append(peak_electron_uncertainty)
 
         average_bg_uncertainty = np.sqrt((df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)]
-                                          [bgstart:bgend]**2).sum(axis=0))/len(df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)][bgstart:bgend])
+                                          [bgstart[n]:bgend[n]]**2).sum(axis=0))/len(df_electron_uncertainties['Electron_Uncertainty_{}'.format(channel)][bgstart[n]:bgend[n]])
         list_average_bg_uncertainties.append(average_bg_uncertainty)
 
-        bg_std = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart:bgend].std()
+        bg_std = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart[n]:bgend[n]].std()
+        
         list_bg_std.append(bg_std)
         
         f_a = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]]
@@ -395,6 +414,8 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
 
 
     #print(list_flux_average)
+    df_info['Bg_start'] = bgstart
+    df_info['Bg_end'] = bgend
     df_info['Energy_channel'] = channels
     df_info['Background_flux'] = list_bg_fluxes
     df_info['Flux_peak'] = list_flux_peaks
@@ -436,9 +457,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
     return df_electron_fluxes, df_info, [searchstart, searchend], [e_low, e_high], [instrument, data_type]
 
 # Workaround for STEP data, there's probably a better way in Python to handle this.
-def extract_step_data(df_particles, plotstart, plotend, bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_step_data(df_particles, plotstart, plotend, bgstart, bgend, t_inj, bg_distance_from_window, travel_distance, travel_distance_second_slope, fixed_window, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
 
-    return extract_data(df_particles, df_particles, plotstart, plotend,  bgstart, bgend, t_inj, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
+    return extract_data(df_particles, df_particles, plotstart, plotend,  bgstart, bgend, t_inj, bg_distance_from_window, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
 
 def make_step_electron_flux(stepdata, mask_conta=True):
     '''
@@ -596,7 +617,7 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', k
                 ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
 
         # Background measurement area.
-        ax.axvspan(df_info['Bg_period'][0], df_info['Bg_period'][1], color='gray', alpha=0.25)
+        ax.axvspan(df_info['Bg_start'][n-1], df_info['Bg_end'][n-1], color='gray', alpha=0.25)
 
         ax.get_xaxis().set_visible(False)
 
