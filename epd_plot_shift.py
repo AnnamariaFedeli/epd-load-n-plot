@@ -4,9 +4,20 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import FormatStrFormatter
 from adjustText import adjust_text
 from astropy import units as u
-
+import sys
+import site
 
 def evolt2beta(ekin, which):
+    """ This function calculates the plasma beta for particles 
+    (electrons or protons) with a certain energy ekin.
+
+    Args:
+        ekin (float): input energy in MeV
+        which (int): 1 for protons, 2 for electrons
+
+    Returns:
+        float: plasma beta
+    """
     c = 299792458.  # m/s,  speed of light
     me0 = 9.109e-31 # kg,   mass of electron
     mp0 = 1.67e-27
@@ -25,12 +36,15 @@ def evolt2beta(ekin, which):
     return beta
 
 def evolt2speed(ekin, which):
-    '''
-    evolt2speed(ekin, which)
-    ekin: in MeV
-    which: 1=protons, 2=electrons
-    returns: v in km/s
-    '''
+    """ This function calculates the velocity of particles
+    (protons or electrons) with a certain energy ekin
+    Args:
+        ekin (float): energy in MeV
+        which (int): 1 for protons, 2 for electrons
+
+    Returns:
+        float: particle velocity in km/s
+    """
     c = 299792458.  # m/s,  speed of light
     
     beta = evolt2beta(ekin, which)
@@ -43,69 +57,89 @@ def evolt2speed(ekin, which):
 
 
 
-def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t_inj, bg_distance_from_window = None, travel_distance = 0,  travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
-    """determines an energy spectrum from time series data for any of the Solar Orbiter / EPD sensors
-        uses energy-dependent time windows to determine the flux points for the spectrum. The dependence 
-        is determined according to an expected velocity dispersion assuming a certain solar injection time (t_inj) and a traval distance (travel_distance)
+def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart = None, bgend = None, bg_distance_from_window = None, bg_period = None, travel_distance = 0,  travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+    """This function determines an energy spectrum from time series data for any of the Solar Orbiter / EPD 
+    sensors uses energy-dependent time windows to determine the flux points for the spectrum. 
+    The dependence is determined according to an expected velocity dispersion assuming a certain 
+    solar injection time (t_inj) and a traval distance (travel_distance).
 
-    Parameters
-    ----------
-    df_protons : pandas DataFrame
-        contains proton (ion) data if instrument is 'het' ('ept')
-    df_electrons : pandas DataFrame
-        electron data
-    plotstart : string
-        start time of the time series plot, e.g., '2020-11-18-0000'
-    plotend : string
-        end time of the time series plot, e.g., '2020-11-18-2230'
-    bgstart : string
-        start time of the background time interval (used for background subtraction)
-    bgend : string
-        end time of the background time interval (used for background subtraction)
-    t_inj : [type]                                                           ************ needs still to be filled ************
-        [description]
-    travel_distance : [type]
-        [description]
-    travel_distance_second_slope : [type], optional
-        [description], by default None
-    fixed_window : [type], optional
-        [description], by default None
-    instrument : str, optional
-        'ept', 'het', or 'step'; by default 'ept'
-    data_type : str, optional
-        which data level (e.g., low latency (ll) or level2 (l2)) is used. This affects the number of energy channels; by default 'l2'
-    averaging_mode : str, optional
-        averaging of the data, 'mean', 'rolling_window', or 'none'; by default 'none'
-    averaging : int, optional
-        number of minutes used for averaging, by default 2
-    masking : bool, optional
-        Refers only to STEP data. If true, time intervals with significant (5 sigma) ion contamination are masked; by default False
-    ion_conta_corr : bool, optional
-        Refers only to EPT data. If true, ion contamination correction is applied; by default False
+    Args:
+        df_protons (pandas DataFrame): contains proton (ion) data if instrument is 'het' ('ept')
+        df_electrons (pandas DataFrame): contains electron data
+        plotstart (string): start time of the time series plot, e.g. '2020-11-18-0000'
+        plotend (string): end time of the time series plot, e.g., '2020-11-18-2230'
+        t_inj (string): solar injection time e.g. '2020-11-18-1230'
+        bgstart (string, optional): start time of the background window. e.g., '2020-11-18-1030'
+                If specified, specify also bgend. By specifying bgstart and bgend the bg window 
+                will be fixed. Defaults to None. Leave to None for a moving bg an specify 
+                bg_distance_from_window and bg_period.
+        bgend (string, optional): end time of the background window. e.g., '2020-11-18-1130'
+                If specified, specify also bgstart. By specifying bgstart and bgend the bg window 
+                will be fixed. Defaults to None. Leave to None for a moving bg an specify 
+                bg_distance_from_window and bg_period.
+        bg_distance_from_window (int, optional): Input in minutes. This is the distance of the 
+                starting point of the background window from the start of the peak search window.
+                Follows the velocity dispersion (first slope). If specified, specify also bg_distance.
+                Defaults to None. Leave to None for a fixed window and specify bgstart and bgend. 
+        bg_period (int, optional): input in minutes. This is the duration of the backdround window 
+                in minutes. If specified, specify also bg_distance_from_window. Defaults to None.
+                Leave to None for a fixed window and specify bgstart and bgend. 
+        travel_distance (float, optional): input in AU. The travel distance calculated with
+                velocity dispersion analysis. This value is used to calculate the 
+                peak search window starting time which is different for each energy channel.
+                Follows the velocity dispersion. Defaults to 0. If left to 0 the search 
+                window will be fixed.
+        travel_distance_second_slope (float, optional): input in AU. Travel distance to calculate 
+                a second slope for the peak window search end time. The flux peak can get broader
+                at lower energies and with a fixed time window it can be hard to determine
+                the flux peak if two events are close to each other with strong velocity dispersion.
+                Defaults to None. If None the peak search window will have a fixed time period. 
+                Either specify travel_distance_second_slope or fixed_window.
+        fixed_window (int, optional): input in minutes. This is the length of the search window
+                in minutes. Defaults to None. Either specify travel_distance_second_slope or fixed_window.
+        instrument (str, optional): 'ept', 'het', or 'step'. Defaults to 'ept'.
+        data_type (str, optional): which data level (e.g., low latency (ll) or level2 (l2)) is used. 
+                This affects the number of energy channels. Defaults to 'l2'.
+        averaging_mode (str, optional): averaging of the data, 'mean', 'rolling_window', 
+                or 'none'. Defaults to 'none'.
+        averaging (int, optional): number of minutes used for averaging. Defaults to 2.
+        masking (bool, optional): Refers only to STEP data. If true, time intervals with significant 
+                (5 sigma) ion contamination are masked. Defaults to False.
+        ion_conta_corr (bool, optional): Refers only to EPT data. If true, ion contamination
+                correction is applied. Defaults to False.
 
-    Returns
-    -------
-    df_electron_fluxes : pandas DataFrame
-        data frame that cotains the electron flux data with applied averaging and optional contamination correction (EPT) or masking (STEP)
-    df_info : pandas DataFrame
-        data frame that contains the spectrum data and all its metadata (which is saved to csv in the function write_to_csv())
-    [searchstart, searchend]: list of strings
-    [e_low, e_high] : list of float
-    [instrument, data_type] . list of strings
+    Raises:
+        Exception: If either bgstart or bgend are not None (so a value has been specified)
+                and also bg_distance_from_window or bg_period are not None, this will raise an error.
+                Either specify bgstart and bgend for a fixed background OR specify bg_distance_from_window
+                and bg_period for a shifting background.
+
+    Returns:
+        df_electron_fluxes: pandas DataFrame
+        df_info : pandas DataFrame. This data frame contains the spectrum data 
+                and all its metadata (which is saved to csv in the function write_to_csv())
+        [searchstart, searchend]: list of strings. The search window start and end times.
+        [e_low, e_high] : list of float. The lowest and highest energy corresponding to 
+                each energy channel.
+        [instrument, data_type] : list of strings.
+
     """
+
+    if bgstart is not None or bgend is not None: 
+        if bg_distance_from_window is not None or bg_period is not None:
+            raise Exception("Please specify either bg_start and bg_end or bg_distance_from_window and bg_period.")
+        
+    
     # Takes proton and electron flux and uncertainty values from original data.
     if(instrument != 'step'):
-
         df_electron_fluxes = df_electrons['Electron_Flux'][plotstart:plotend]
         df_electron_uncertainties = df_electrons['Electron_Uncertainty'][plotstart:plotend]
 
     if(instrument == 'ept'):
-
         df_proton_fluxes = df_protons['Ion_Flux'][plotstart:plotend]
         df_proton_uncertainties = df_protons['Ion_Uncertainty'][plotstart:plotend]
 
         if(data_type == 'll'):
-
             channels = [0,1,2,3,4,5,6,7]
 
             for i in channels:
@@ -144,7 +178,6 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
 
             
     elif(instrument == 'step'):
-
         if(data_type == 'l2'):
 
             channels = range(0,48)
@@ -159,12 +192,10 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
             e_high = step_data[3]
 
 
-
         # Cleans up negative flux values in STEP data.
         df_electron_fluxes[df_electron_fluxes<0] = np.NaN
 
     if(averaging_mode == 'mean'):
-
         if(instrument=='ept'):
 
             df_proton_fluxes =df_proton_fluxes.resample('{}min'.format(averaging)).mean()
@@ -175,7 +206,6 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
 
     # The rolling window might be broken, but it's not ever used.
     elif(averaging_mode == 'rolling_window'):
-
         df_electron_fluxes = df_electron_fluxes.rolling(window=averaging, min_periods=1).mean()
 
 
@@ -195,44 +225,37 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
         df_electron_uncertainties = np.sqrt(df_electron_uncertainties**2 + Electron_Uncertainty_cont**2 )
     
     if(instrument=='ept'):
-
         ion_string = 'Ion_contamination_correction'
 
     elif(instrument=='step'):
-
         ion_string = 'Ion_masking'
 
     elif(instrument=='het'):
-
         ion_string = ''
-
+    
     # Main information dataframe containing most of the required data.
     #df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Bg_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[], 'frac_nonan':[]})
-    df_info = pd.DataFrame({'Plot_period':[], 'Search_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[], 'frac_nonan':[]})
-
+    #df_info = pd.DataFrame({'Plot_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[], 'Energy_error_low':[], 'Energy_error_high':[], 'Peak_timestamp':[], 'Flux_peak':[], 'Peak_significance':[], 'Peak_electron_uncertainty':[], 'Background_flux':[],'Bg_electron_uncertainty':[], 'Bg_subtracted_peak':[], 'Backsub_peak_uncertainty':[], 'rel_backsub_peak_err':[], 'frac_nonan':[]})
+    df_info = pd.DataFrame({'Plot_period':[], 'Averaging':[], '{}'.format(ion_string):[], 'Energy_channel':[], 'Primary_energy':[]})
+    
     # Adds basic metadata to main info df.
     df_info['Plot_period'] = [plotstart]+[plotend]+['']*(len(channels)-2)
     #df_info['Search_period'] = [searchstart]+[searchend]+['']*(len(channels)-2)
     #df_info['Bg_period'] = [bgstart]+[bgend]+['']*(len(channels)-2)
 
     if(instrument=='ept'):
-
         df_info['Ion_contamination_correction'] = [ion_conta_corr]+['']*(len(channels)-1)
 
     elif(instrument=='step'):
-
         df_info['Ion_masking'] = [masking]+['']*(len(channels)-1)
 
     if(averaging_mode == 'none'):
-
         df_info['Averaging'] = ['No averaging']+['']*(len(channels)-1)
 
     elif(averaging_mode == 'rolling_window'):
-
         df_info['Averaging'] = ['Rolling window', 'Window size = ' + str(averaging)] + ['']*(len(channels)-2)
 
     elif(averaging_mode == 'mean'):
-
         df_info['Averaging'] = ['Mean', 'Resampled to ' + str(averaging) + 'min'] + ['']*(len(channels)-2)
 
 
@@ -242,17 +265,35 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
     primary_energies = []
 
     for i in range(0,len(e_low)):
-
         primary_energies.append(np.sqrt(e_low[i]*e_high[i]))
 
     primary_energies_channels = []
 
     for energy in channels:
-
         primary_energies_channels.append(primary_energies[energy])
 
     df_info['Primary_energy'] = primary_energies_channels
-    
+
+    # Calculates energy errors for spectrum plot.
+    energy_error_low = []
+    energy_error_high = []
+
+    for i in range(0,len(primary_energies)):
+
+        energy_error_low.append(primary_energies[i]-e_low[i])
+        energy_error_high.append(e_high[i]-primary_energies[i])
+
+    #print(energy_error_low)
+    energy_error_low_channels = []
+    energy_error_high_channels = []
+
+    for i in channels:
+
+        energy_error_low_channels.append(energy_error_low[i])
+        energy_error_high_channels.append(energy_error_high[i])
+
+    df_info['Energy_error_low'] = energy_error_low_channels
+    df_info['Energy_error_high'] = energy_error_high_channels
 
     # Calculating plasma beta and velocity with kinetic energy (primary energy)
     # the velocity is in km/s
@@ -262,7 +303,6 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
         velocity.append(evolt2speed(energy, 2))
 
 
-# 
     # Using calculated velocity to find the right search period
     # the travel distance from au to km
     travel_distance = travel_distance*1.496E8
@@ -298,8 +338,8 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
         for i in searchstart:
             searchend.append(i+pd.Timedelta(minutes = fixed_window))
             
-
-    if bg_distance_from_window == None:
+        
+    if bg_distance_from_window is None:
         bg_start = bgstart
         bg_end = bgend
         bgstart = []
@@ -308,12 +348,12 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
             bgstart.append(bg_start)
             bgend.append(bg_end)
     # fix bg window 
-    if bg_distance_from_window != None:
+    if bg_distance_from_window is not None:
         bgstart = []
         bgend   = []
         for i in range(0,len(searchstart)):
             bgstart.append(searchstart[i]-pd.Timedelta(minutes = bg_distance_from_window))
-            bgend.append(searchend[i]-pd.Timedelta(minutes = bg_distance_from_window))
+            bgend.append(bgstart[i]+pd.Timedelta(minutes = bg_period))
 
     # Next blocks of code calculate information from data and append them to main info df.
     list_bg_fluxes = []
@@ -331,11 +371,10 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
     #list_average_electron_uncertainties = [] change to new unc determination later
 
     n = 0
-   
+    
     for channel in channels:
-        #print(n)
-        #print(len(bgstart))
         b_f = df_electron_fluxes['Electron_Flux_{}'.format(channel)][bgstart[n]:bgend[n]]
+    
         if len(b_f) ==0:
             bg_flux = np.nan
             list_bg_fluxes.append(bg_flux)
@@ -350,6 +389,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
         if len(f_p) != 0:
             flux_peak = df_electron_fluxes['Electron_Flux_{}'.format(channel)][searchstart[n]:searchend[n]].max()
         list_flux_peaks.append(flux_peak)
+        
 
         # check if a large enough fraction of data points are not nan. If there are too many nan's in the search time interval, frac_nonan can be used to exclude the channel from the spectrum
         frac_nonan = 1 - np.sum(np.isnan(f_p)) / len(f_p) # fraction of data in interval that is NOT nan
@@ -412,14 +452,18 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
 
 
 
-
+    
     #print(list_flux_average)
+    df_info['Energy_channel'] = channels
     df_info['Bg_start'] = bgstart
     df_info['Bg_end'] = bgend
-    df_info['Energy_channel'] = channels
+    df_info['Searchstart'] = searchstart
+    df_info['Searchend'] = searchend
+    df_info['Peak_timestamp'] = list_peak_timestamps
+    
     df_info['Background_flux'] = list_bg_fluxes
     df_info['Flux_peak'] = list_flux_peaks
-    df_info['Peak_timestamp'] = list_peak_timestamps
+    
     df_info['Bg_subtracted_peak'] = list_bg_subtracted_peaks
     df_info['Peak_electron_uncertainty'] = list_peak_electron_uncertainties
     df_info['Bg_electron_uncertainty'] = list_average_bg_uncertainties
@@ -428,38 +472,19 @@ def extract_data(df_protons, df_electrons, plotstart, plotend, bgstart, bgend, t
     #df_info['Average_electron_uncertainty'] = list_average_electron_uncertainties  change to new unc determination later
     df_info['Bg_subtracted_average'] = list_bg_subtracted_average
     df_info['Average_significance'] = list_average_significance
-    df_info['Searchstart'] = searchstart
-    df_info['Searchend'] = searchend
+    
     df_info['Backsub_peak_uncertainty'] = np.sqrt(df_info['Peak_electron_uncertainty']**2 + df_info['Bg_electron_uncertainty']**2)
     df_info['rel_backsub_peak_err'] = np.abs(df_info['Backsub_peak_uncertainty'] / df_info['Bg_subtracted_peak'])
     df_info['frac_nonan'] = list_frac_nonan
 
-    # Calculates energy errors for spectrum plot.
-    energy_error_low = []
-    energy_error_high = []
-
-    for i in range(0,len(primary_energies)):
-
-        energy_error_low.append(primary_energies[i]-e_low[i])
-        energy_error_high.append(e_high[i]-primary_energies[i])
-
-    energy_error_low_channels = []
-    energy_error_high_channels = []
-
-    for i in channels:
-
-        energy_error_low_channels.append(energy_error_low[i])
-        energy_error_high_channels.append(energy_error_high[i])
-
-    df_info['Energy_error_low'] = energy_error_low_channels
-    df_info['Energy_error_high'] = energy_error_high_channels
+    
 
     return df_electron_fluxes, df_info, [searchstart, searchend], [e_low, e_high], [instrument, data_type]
 
 # Workaround for STEP data, there's probably a better way in Python to handle this.
-def extract_step_data(df_particles, plotstart, plotend, bgstart, bgend, t_inj, bg_distance_from_window, travel_distance, travel_distance_second_slope, fixed_window, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_step_data(df_particles, plotstart, plotend, t_inj, bgstart = None, bgend = None, bg_distance_from_window = None, bg_period = None, travel_distance = 0, travel_distance_second_slope = None, fixed_window = None, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
 
-    return extract_data(df_particles, df_particles, plotstart, plotend,  bgstart, bgend, t_inj, bg_distance_from_window, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
+    return extract_data(df_particles, df_particles, plotstart, plotend,  t_inj, bgstart, bgend, bg_distance_from_window, bg_period, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
 
 def make_step_electron_flux(stepdata, mask_conta=True):
     '''
@@ -535,6 +560,7 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', k
     """    
     peak_sig = args[1]['Peak_significance']
     rel_err = args[1]['rel_backsub_peak_err']
+    
     #hours = mdates.HourLocator(interval = 1)
     df_electron_fluxes = args[0]
     df_info = args[1]
@@ -591,6 +617,7 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', k
     plt.ylabel("Flux \n [1/s cm$^2$ sr MeV]", labelpad=40)
     plt.xlabel("Time", labelpad=45)
     plt.title(title_string)
+ 
 
     # Loop through selected energy channels and create a subplot for each.
     n=1
@@ -604,7 +631,8 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', k
         # Search area vertical lines.
         ax.axvline(search_area[0][n-1], color='black')
         ax.axvline(search_area[1][n-1], color='black')
-
+        
+        
         # Peak vertical line.
         if df_info['Peak_timestamp'][n-1] is not pd.NaT:
             if  (rel_err[n-1] > rel_err_threshold): # if the relative error too large, we exlcude the channel
@@ -615,7 +643,7 @@ def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', k
                 ax.axvline(df_info['Peak_timestamp'][n-1], linestyle='-.', linewidth=2, color='blue')
             if (peak_sig[n-1] >= sigma) and (rel_err[n-1] <= rel_err_threshold) and (df_info['frac_nonan'][n-1] > frac_nan_threshold):
                 ax.axvline(df_info['Peak_timestamp'][n-1], color='green')
-
+            
         # Background measurement area.
         ax.axvspan(df_info['Bg_start'][n-1], df_info['Bg_end'][n-1], color='gray', alpha=0.25)
 
