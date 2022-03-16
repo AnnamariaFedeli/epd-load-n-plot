@@ -6,6 +6,7 @@ from adjustText import adjust_text
 from astropy import units as u
 import sys
 import site
+import matplotlib.pyplot as plt
 
 def evolt2beta(ekin, which):
     """ This function calculates the plasma beta for particles 
@@ -71,11 +72,11 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart =
         t_inj (string): solar injection time e.g. '2020-11-18-1230'
         bgstart (string, optional): start time of the background window. e.g., '2020-11-18-1030'
                 If specified, specify also bgend. By specifying bgstart and bgend the bg window 
-                will be fixed. Defaults to None. Leave to None for a moving bg an specify 
+                will be fixed. Defaults to None. Leave to None for a moving bg and specify 
                 bg_distance_from_window and bg_period.
         bgend (string, optional): end time of the background window. e.g., '2020-11-18-1130'
                 If specified, specify also bgstart. By specifying bgstart and bgend the bg window 
-                will be fixed. Defaults to None. Leave to None for a moving bg an specify 
+                will be fixed. Defaults to None. Leave to None for a moving bg and specify 
                 bg_distance_from_window and bg_period.
         bg_distance_from_window (int, optional): Input in minutes. This is the distance of the 
                 starting point of the background window from the start of the peak search window.
@@ -96,7 +97,8 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart =
                 Defaults to None. If None the peak search window will have a fixed time period. 
                 Either specify travel_distance_second_slope or fixed_window.
         fixed_window (int, optional): input in minutes. This is the length of the search window
-                in minutes. Defaults to None. Either specify travel_distance_second_slope or fixed_window.
+                in minutes. Defaults to None. Either specify travel_distance_second_slope 
+                or fixed_window.
         instrument (str, optional): 'ept', 'het', or 'step'. Defaults to 'ept'.
         data_type (str, optional): which data level (e.g., low latency (ll) or level2 (l2)) is used. 
                 This affects the number of energy channels. Defaults to 'l2'.
@@ -487,14 +489,28 @@ def extract_step_data(df_particles, plotstart, plotend, t_inj, bgstart = None, b
     return extract_data(df_particles, df_particles, plotstart, plotend,  t_inj, bgstart, bgend, bg_distance_from_window, bg_period, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
 
 def make_step_electron_flux(stepdata, mask_conta=True):
-    '''
-    here we use the calibration factors from Paco (Alcala) to calculate the electron flux out of the (integral - magnet) fluxes (we now use level2 data files to get these)
-    we also check if the integral counts are sufficiently higher than the magnet counts so that we can really assume it's electrons (otherwise we mask the output arrays)
+    """
+    We use the calibration factors from Paco (Alcala) to calculate the electron flux 
+    out of the (integral - magnet) fluxes (we now use level2 data files to get these)
+    we also check if the integral counts are sufficiently higher than the magnet counts 
+    so that we can really assume it's electrons (otherwise we mask the output arrays)
     As suggested by Alex Kollhoff & Berger use a 5 sigma threshold:
     C_INT >> C_MAG:
     C_INT - C_MAG > 5*sqrt(C_INT)
-    Alex: die count rates und fuer die uebrigen Zeiten gebe ich ein oberes Limit des Elektronenflusses an, das sich nach 5*sqrt(C_INT) /(E_f - E_i) /G_e berechnet.
-    '''
+    
+    Args:
+        stepdata (pandas dataframe): STEP data
+        mask_conta (bool, optional): If true, time intervals with significant 
+                (5 sigma) ion contamination are masked. Defaults to True. 
+
+    Returns:
+        df_electron_fluxes (pandas dataframe): electron flux data
+        df_electron_uncertainties
+        paco.E_low
+        paco.E_hi
+
+    """
+
     # calculate electron flux from F_INT - F_MAG:
     colnames = ["ch_num", "E_low", "E_hi", "factors"]
     paco = pd.read_csv('step_electrons_calibration.csv', names=colnames, skiprows=1)
@@ -538,26 +554,41 @@ def average_flux_error(flux_err: pd.DataFrame) -> pd.Series:
     return np.sqrt((flux_err ** 2).sum(axis=0)) / len(flux_err.values)
 
 def plot_channels(args, bg_subtraction=False, savefig=False, sigma=3, path='', key='', frac_nan_threshold=0.4, rel_err_threshold=0.5):
-    """[summary]
+    """Creates a timeseries plot showing the particle flux for each energy channel of
+        the instrument (STEP, EPT, HET). The timeseries plot shows also the peak window and
+        background window. The peak is marked with different color lines:
+        green: peak is ok
+        grey: too many nans in window
+        blue: low sigma
+        orange: high relative error
 
-    Parameters
-    ----------
-    args : [type]
-        [description]
-    bg_subtraction : bool, optional
-        [description], by default False
-    savefig : bool, optional
-        [description], by default False
-    sigma : int, optional
-        [description], by default 3
-    path : str, optional
-        [description], by default ''
-    key : str, optional
-        [description], by default ''
-    frac_nan_threshold: float
-        is used to to check if there is enough non-nan flux data points in the search-period interval. 
-        If not, the flux and uncertainty value of that energy channel are set to nan and therefore excluded from the spectrum; by default0.4
-    """    
+    Args:
+        args : Output of the extract_data function. Incudes:
+                df_electron_fluxes: pandas DataFrame
+                df_info : pandas DataFrame. This data frame contains the spectrum data 
+                and all its metadata (which is saved to csv in the function write_to_csv())
+                [searchstart, searchend]: list of strings. The search window start and end times.
+                [e_low, e_high] : list of float. The lowest and highest energy corresponding to 
+                each energy channel.
+                [instrument, data_type] : list of strings.
+        bg_subtraction (bool, optional): Subtract bg from data. Defaults to False.
+        savefig (bool, optional): saving the timeseries plot. Defaults to False.
+        sigma (int, optional): sigma threshold value. Is used to check if the sigma value is 
+                high enough fro the data within the search-period interval. If not, the flux and 
+                uncertainty value of that energy channel are set to nan and therefore 
+                excluded from the spectrum. Defaults to 3.
+        path (str, optional): path to folder where the timeseries will be saved. Defaults to ''.
+        key (str, optional): _description_. Defaults to ''.
+        frac_nan_threshold (float, optional):  is used to to check if there is enough non-nan 
+                flux data points in the search-period interval. If not, the flux and 
+                uncertainty value of that energy channel are set to nan and therefore 
+                excluded from the spectrum. Defaults to 0.4.
+        rel_err_threshold (float, optional): is used to check that relative error is 
+                low enough in the search period interval. If not, the flux and 
+                uncertainty value of that energy channel are set to nan and therefore 
+                excluded from the spectrum. Defaults to 0.5.
+    """
+    
     peak_sig = args[1]['Peak_significance']
     rel_err = args[1]['rel_backsub_peak_err']
     
@@ -891,6 +922,7 @@ def plot_spectrum_average(args, bg_subtraction=True, savefig=False, path='', key
 
     plt.show()
 
+
 def write_to_csv(args, path='', key=''):
 
     df_info = args[1]
@@ -913,7 +945,7 @@ def write_to_csv(args, path='', key=''):
 
             filename = filename + '-ion_corr'
 
-    df_info.to_csv(path + filename + str(key) + '.csv', index=False)
+    df_info.to_csv(path + filename + str(key) + '.csv',  sep = ';', index=False)
 
 # This acc_flux function is not really finished, just something I put together quickly.
 def acc_flux(args, time=[]):
