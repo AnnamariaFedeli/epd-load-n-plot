@@ -7,6 +7,9 @@ from astropy import units as u
 import sys
 import site
 import matplotlib.pyplot as plt
+from math import *
+from tkinter import *
+import astropy.units as u
 
 def evolt2beta(ekin, which):
     """ This function calculates the plasma beta for particles 
@@ -56,6 +59,35 @@ def evolt2speed(ekin, which):
 
 #searchstart, searchend,
 
+def len_of_spiral(vsw, dist):
+    # dist = np.float(dist)
+    #print('dist:', dist, type(dist))
+    #print('')
+    omega = np.deg2rad(360./(25.38*24.*60.*60.)) #in deg per sec
+    AU = 1*u.au
+    r     = AU.to(u.km).value * dist    # ~ 1AU sc Distance in km multiplied by dist in AU
+    r_a   = 695700.      # 1R_sun in km
+    #r_a = 0.05 * AU.to(u.km).value
+
+
+    # length of spiral in kmN
+    R_s = 0.5*omega/vsw*(r-r_a)*np.sqrt((r-r_a)**2+(vsw/omega)**2)+0.5*vsw/omega*asinh((r-r_a)/vsw*omega)
+    new_R_s = R_s/AU.to(u.km).value            # '  length of spiral in AU'
+
+    return new_R_s
+
+
+def traveltime_los(los, energy, which, dist):
+
+    v_e = evolt2speed(energy, which)
+
+    R_s = los * 149597870.691 #  dist is already taken into account in los (length of spiral)
+
+    # traveltime of electrons with given keV energy
+    t = R_s/v_e
+    #print(t)
+
+    return t/60.
 
 
 def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart = None, bgend = None, bg_distance_from_window = None, bg_period = None, travel_distance = 0,  travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
