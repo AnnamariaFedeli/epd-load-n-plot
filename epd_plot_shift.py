@@ -1,4 +1,4 @@
-from epd_loader import *
+# from solo_epd_loader import epd_load
 from matplotlib.ticker import LinearLocator, MultipleLocator, AutoMinorLocator
 import matplotlib.dates as mdates
 from matplotlib.ticker import FormatStrFormatter
@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from math import *
 from tkinter import *
 import astropy.units as u
+import numpy as np
+import pandas as pd
 
 def evolt2beta(ekin, which):
     """ This function calculates the plasma beta for particles 
@@ -89,6 +91,15 @@ def traveltime_los(los, energy, which, dist):
 
     return t/60.
 
+def light_tt(dist):
+    # dist in AU
+    v = 299792458  # m/s
+    au2m = 149597870691# m
+
+    dist = dist*au2m
+    t = dist/v  # in sec
+    t = t/60.
+    return t
 
 def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart = None, bgend = None, bg_distance_from_window = None, bg_period = None, travel_distance = 0,  travel_distance_second_slope = None, fixed_window = None, instrument = 'ept', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
     """This function determines an energy spectrum from time series data for any of the Solar Orbiter / EPD 
