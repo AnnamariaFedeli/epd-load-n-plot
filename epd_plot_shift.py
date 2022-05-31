@@ -170,9 +170,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart =
 
     """
 
-    if bgstart is not None or bgend is not None: 
-        if bg_distance_from_window is not None or bg_period is not None:
-            raise Exception("Please specify either bg_start and bg_end or bg_distance_from_window and bg_period.")
+    #if bgstart is not None or bgend is not None: 
+     #   if bg_distance_from_window is not None or bg_period is not None:
+      #      raise Exception("Please specify either bg_start and bg_end or bg_distance_from_window and bg_period.")
         
     
     # Takes proton and electron flux and uncertainty values from original data.
@@ -508,7 +508,7 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart =
     
     df_info['Background_flux'] = list_bg_fluxes
     df_info['Flux_peak'] = list_flux_peaks
-    
+   
     df_info['Bg_subtracted_peak'] = list_bg_subtracted_peaks
     df_info['Peak_electron_uncertainty'] = list_peak_electron_uncertainties
     df_info['Bg_electron_uncertainty'] = list_average_bg_uncertainties
@@ -527,9 +527,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart =
     return df_electron_fluxes, df_info, [searchstart, searchend], [e_low, e_high], [instrument, data_type]
 
 # Workaround for STEP data, there's probably a better way in Python to handle this.
-def extract_step_data(df_particles, plotstart, plotend, t_inj, bgstart = None, bgend = None, bg_distance_from_window = None, bg_period = None, travel_distance = 0, travel_distance_second_slope = None, fixed_window = None, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
+def extract_step_data(df_particles,  plotstart, plotend, t_inj, bgstart = None, bgend = None, bg_distance_from_window = None, bg_period = None, travel_distance = 0, travel_distance_second_slope = None, fixed_window = None, instrument = 'step', data_type = 'l2', averaging_mode='none', averaging=2, masking=False, ion_conta_corr=False):
 
-    return extract_data(df_particles, df_particles, plotstart, plotend,  t_inj, bgstart, bgend, bg_distance_from_window, bg_period, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
+    return extract_data(df_particles, df_particles,  plotstart, plotend,  t_inj, bgstart, bgend, bg_distance_from_window, bg_period, travel_distance, travel_distance_second_slope, fixed_window, instrument = instrument, data_type = data_type, averaging_mode=averaging_mode, averaging=averaging, masking=masking, ion_conta_corr=ion_conta_corr)
 
 def make_step_electron_flux(stepdata, mask_conta=True):
     """
