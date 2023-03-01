@@ -108,8 +108,9 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart =
     solar injection time (t_inj) and a traval distance (travel_distance).
 
     Args:
-        df_protons (pandas DataFrame): contains proton (ion) data if instrument is 'het' ('ept')
-        df_electrons (pandas DataFrame): contains electron data
+        df_protons (pandas DataFrame): contains proton (ion) data if instrument is 'het' ('ept'). 
+        If you are using step data epd_load will create a dataframe with only electron data so, use a double df_electron input for step.
+        df_electrons (pandas DataFrame): contains electron data 
         plotstart (string): start time of the time series plot, e.g. '2020-11-18-0000'
         plotend (string): end time of the time series plot, e.g., '2020-11-18-2230'
         t_inj (string): solar injection time e.g. '2020-11-18-1230'
@@ -221,11 +222,14 @@ def extract_data(df_protons, df_electrons, plotstart, plotend,  t_inj, bgstart =
             e_low = [0.4533, 1.0530, 2.4010, 5.9930]
             e_high = [1.0380, 2.4010, 5.9930, 18.8300]
 
-            
+            #28.02 changing this part
     elif(instrument == 'step'):
         if(data_type == 'l2'):
 
             channels = range(0,48)
+
+            df_electron_fluxes = df_electrons['Electron_Avg_Flux_Mult'][plotstart:plotend]
+            df_electron_uncertainties = df_electrons['Electron_Uncertainty'][plotstart:plotend]
 
             step_data = make_step_electron_flux(df_electrons, mask_conta=masking)
             print(step_data[0].index)
